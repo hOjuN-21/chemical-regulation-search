@@ -540,6 +540,14 @@ class RegulatorySearchHandler(BaseHTTPRequestHandler):
 # 9. 메인 서버 실행부
 # ==========================================
 def run_server(port=8000):
+    # Render 등 클라우드 환경에서는 PORT 환경변수를 주입해주므로 우선적으로 사용
+    env_port = os.environ.get("PORT")
+    if env_port:
+        try:
+            port = int(env_port)
+        except ValueError:
+            pass
+            
     server_address = ("", port)
     httpd = HTTPServer(server_address, RegulatorySearchHandler)
     print(f"\n========================================================")
@@ -555,3 +563,4 @@ def run_server(port=8000):
 
 if __name__ == "__main__":
     run_server()
+
