@@ -102,15 +102,21 @@ body {
 
 /* 6. 헤더 디자인 */
 .app-header {
-    text-align: center;
     margin-bottom: 10px;
+}
+
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
 }
 
 .logo {
     display: inline-flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 8px;
 }
 
 .pulse-dot {
@@ -138,11 +144,34 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
+/* 설정 톱니바퀴 버튼 */
+.settings-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.settings-btn:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    background: rgba(0, 242, 254, 0.05);
+    transform: rotate(45deg);
+}
+
 .subtitle {
     font-size: 1.05rem;
     color: var(--text-secondary);
     font-weight: 400;
     letter-spacing: 0.5px;
+    text-align: left;
 }
 
 /* 7. 제어판 (Control Panel) */
@@ -506,7 +535,123 @@ body {
     overflow-y: auto;
 }
 
-/* 10. 유틸리티 및 푸터 */
+/* 10. 모달창 (Settings Modal) 디자인 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.modal-content {
+    width: 90%;
+    max-width: 480px;
+    padding: 30px;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.25rem;
+    color: #ffffff;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: var(--color-danger);
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.modal-info {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    border-left: 2px solid var(--color-accent);
+    padding-left: 10px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.form-group input {
+    background: rgba(10, 13, 20, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    color: #ffffff;
+    outline: none;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    border-color: var(--color-accent);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.modal-actions button {
+    flex: 1;
+}
+
+.clear-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    color: var(--color-danger);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+/* 푸터 및 공통 */
 .hidden {
     display: none !important;
 }
@@ -533,14 +678,14 @@ body {
     margin: 0 auto;
 }
 
-/* 11. 인쇄용 CSS (Print Styles) */
+/* 인쇄 스타일 */
 @media print {
     body {
         background: #ffffff !important;
         color: #000000 !important;
     }
     
-    .background-decor, .control-panel, .app-footer, #loader {
+    .background-decor, .control-panel, .app-footer, #loader, .settings-btn, .modal-overlay {
         display: none !important;
     }
     

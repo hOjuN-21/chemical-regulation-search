@@ -364,27 +364,25 @@ document.addEventListener('DOMContentLoaded', () => {
     async function callNvidiaNemotronAPI(apiKey, sec2, sec15) {
         const url = "https://integrate.api.nvidia.com/v1/chat/completions";
         
-        const systemPrompt = (
-            "당신은 대한민국 화학물질 규제 전문가입니다. 제공된 화학물질 MSDS의 유해성(2조) 및 법적규제현황(15조) 텍스트를 분석하여 "
-            "요청하는 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거를 요약하여 반환해야 합니다.\n"
-            "분류할 대상 법령 및 키워드:\n"
-            "1. san_an (산업안전보건법)\n"
-            "2. hwa_gwan (화학물질관리법)\n"
-            "3. danger (위험물안전관리법)\n"
-            "4. high_gas (고압가스안전관리법)\n"
-            "5. imdg (해상운송 IMDG)\n"
-            "6. iata (항공운송 IATA DGR)\n\n"
-            "반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록(```json 등)도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.\n"
-            "JSON 형식:\n"
-            "{\n"
-            '  "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '  "hwa_gwan": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '  "danger": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '  "high_gas": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '  "imdg": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '  "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}\n'
-            "}"
-        );
+        const systemPrompt = `당신은 대한민국 화학물질 규제 전문가입니다. 제공된 화학물질 MSDS의 유해성(2조) 및 법적규제현황(15조) 텍스트를 분석하여 요청하는 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거를 요약하여 반환해야 합니다.
+분류할 대상 법령 및 키워드:
+1. san_an (산업안전보건법)
+2. hwa_gwan (화학물질관리법)
+3. danger (위험물안전관리법)
+4. high_gas (고압가스안전관리법)
+5. imdg (해상운송 IMDG)
+6. iata (항공운송 IATA DGR)
+
+반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
+JSON 형식:
+{
+  "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+  "hwa_gwan": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+  "danger": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+  "high_gas": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+  "imdg": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+  "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}
+}`;
 
         const userPrompt = `MSDS 제2조 유해성 위험성:\n${sec2}\n\nMSDS 제15조 법적 규제현황:\n${sec15}`;
 
@@ -428,34 +426,32 @@ document.addEventListener('DOMContentLoaded', () => {
     async function callNvidiaNemotronForName(apiKey, name) {
         const url = "https://integrate.api.nvidia.com/v1/chat/completions";
         
-        const systemPrompt = (
-            "당신은 대한민국 화학물질 규제 전문가입니다. 입력받은 화학물질명에 대해 "
-            "국내외 6가지 법적 규제에 저촉되는지 분류하고 근거와 규제치를 요약하여 반환해야 합니다.\n"
-            "분류할 대상 법령:\n"
-            "1. san_an (산업안전보건법)\n"
-            "2. hwa_gwan (화학물질관리법)\n"
-            "3. danger (위험물안전관리법)\n"
-            "4. high_gas (고압가스안전관리법)\n"
-            "5. imdg (해상운송 IMDG)\n"
-            "6. iata (항공운송 IATA DGR)\n\n"
-            "반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록(```json 등)도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.\n"
-            "JSON 형식:\n"
-            "{\n"
-            '  "cas_no": "물질의 CAS 번호 (확인 불가 시 미확인)",\n'
-            '  "name_ko": "한글 물질명",\n'
-            '  "name_en": "영문 물질명",\n'
-            '  "formula": "분자식 (확인 불가 시 -)",\n'
-            '  "molecular_weight": "분자량 (확인 불가 시 -)",\n'
-            '  "regulations": {\n'
-            '    "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '    "hwa_gwan": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '    "danger": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '    "high_gas": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '    "imdg": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},\n'
-            '    "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}\n'
-            '  }\n'
-            "}"
-        );
+        const systemPrompt = `당신은 대한민국 화학물질 규제 전문가입니다. 입력받은 화학물질명에 대해 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거와 규제치를 요약하여 반환해야 합니다.
+분류할 대상 법령:
+1. san_an (산업안전보건법)
+2. hwa_gwan (화학물질관리법)
+3. danger (위험물안전관리법)
+4. high_gas (고압가스안전관리법)
+5. imdg (해상운송 IMDG)
+6. iata (항공운송 IATA DGR)
+
+반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
+JSON 형식:
+{
+  "cas_no": "물질의 CAS 번호 (확인 불가 시 미확인)",
+  "name_ko": "한글 물질명",
+  "name_en": "영문 물질명",
+  "formula": "분자식 (확인 불가 시 -)",
+  "molecular_weight": "분자량 (확인 불가 시 -)",
+  "regulations": {
+    "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+    "hwa_gwan": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+    "danger": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+    "high_gas": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+    "imdg": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
+    "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}
+  }
+}`;
 
         try {
             const response = await fetch(url, {
