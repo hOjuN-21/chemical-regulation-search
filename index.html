@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- PDF.js CDN (Client-side PDF parsing) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <!-- Main Style -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -20,9 +22,18 @@
     <div class="app-container">
         <!-- 헤더 영역 -->
         <header class="app-header">
-            <div class="logo">
-                <span class="pulse-dot"></span>
-                <h1>CHEM-REG</h1>
+            <div class="header-top">
+                <div class="logo">
+                    <span class="pulse-dot"></span>
+                    <h1>CHEM-REG</h1>
+                </div>
+                <!-- 설정 톱니바퀴 버튼 -->
+                <button id="settings-btn" class="settings-btn" title="API 설정">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
             </div>
             <p class="subtitle">화학물질 법령규제 원스톱 진단 포털</p>
         </header>
@@ -58,7 +69,7 @@
                     <div class="upload-text">
                         <span class="highlight">MSDS PDF 파일</span>을 드래그하여 놓거나 클릭하여 업로드
                     </div>
-                    <p class="upload-info">일반 MSDS PDF 문서 지원 (텍스트 파일 우선)</p>
+                    <p class="upload-info">일반 MSDS PDF 문서 지원 (브라우저 메모리 보안 파싱)</p>
                     <input type="file" id="file-input" accept="application/pdf" style="display: none;">
                 </div>
             </section>
@@ -66,7 +77,7 @@
             <!-- 로딩 바 -->
             <div id="loader" class="loader-container hidden">
                 <div class="spinner"></div>
-                <p>화학물질 데이터베이스 및 MSDS 법적규제를 분석 중입니다...</p>
+                <p id="loader-text">화학물질 데이터베이스 및 MSDS 법적규제를 분석 중입니다...</p>
             </div>
 
             <!-- 3. 결과 리포트 출력 영역 -->
@@ -75,8 +86,8 @@
                 <div class="priority-banner" id="priority-banner">
                     <div class="banner-icon">⚠️</div>
                     <div class="banner-text">
-                        <strong>MSDS 규제정보 우선 적용 판정</strong><br>
-                        <span>단일 CAS 번호 조회보다 실제 제품 MSDS(제15조 법적 규제현황)에 수록된 고지 의무 및 제한기준을 최우선으로 반영하여 도출한 리포트입니다.</span>
+                        <strong id="banner-title">MSDS 규제정보 우선 적용 판정</strong><br>
+                        <span id="banner-desc">단일 CAS 번호 조회보다 실제 제품 MSDS(제15조 법적 규제현황)에 수록된 고지 의무 및 제한기준을 최우선으로 반영하여 도출한 리포트입니다.</span>
                     </div>
                 </div>
 
@@ -170,12 +181,40 @@
         </main>
 
         <footer class="app-footer">
-            <p>© 2026 물질 법령규제 검색기. All Rights Reserved.</p>
+            <p>© 2026 물질 법령규제 검색기 (Serverless Portal). All Rights Reserved.</p>
             <p class="notice">※ 본 시스템의 규제 진단 정보는 참조용 데이터이며 법적 증빙 효력이 없습니다. 실제 규제 적용은 공식 관할부처의 고시를 확인하시기 바랍니다.</p>
         </footer>
     </div>
 
+    <!-- 설정 모달창 -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h3>🔑 API 연동 설정</h3>
+                <button id="close-settings" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-info">입력한 API 키는 본인 PC 브라우저(LocalStorage)에만 안전하게 저장되며 외부 서버로 절대 유출되지 않습니다.</p>
+                
+                <div class="form-group">
+                    <label for="input-nvidia-key">NVIDIA API KEY (Nemotron-3-Ultra)</label>
+                    <input type="password" id="input-nvidia-key" placeholder="nvapi-..." autocomplete="off">
+                </div>
+                
+                <div class="form-group">
+                    <label for="input-datago-key">공공데이터포털 서비스키 (일반인증키)</label>
+                    <input type="password" id="input-datago-key" placeholder="발급받은 일반인증키 입력" autocomplete="off">
+                </div>
+
+                <div class="modal-actions">
+                    <button id="save-settings" class="glow-btn"><span>설정 저장</span></button>
+                    <button id="clear-settings" class="clear-btn">설정 초기화</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Script -->
-    <script src="app.js"></script>
+    <script src="app.js?v=20260714"></script>
 </body>
 </html>
