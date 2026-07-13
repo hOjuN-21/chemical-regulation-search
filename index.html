@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>화학물질 법령규제 검색기 — One-Stop Regulation Portal</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-decor">
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- 헤더 영역 -->
+        <header class="app-header">
+            <div class="logo">
+                <span class="pulse-dot"></span>
+                <h1>CHEM-REG</h1>
+            </div>
+            <p class="subtitle">화학물질 법령규제 원스톱 진단 포털</p>
+        </header>
+
+        <!-- 대시보드 코어 영역 -->
+        <main class="app-main">
+            <!-- 검색 및 업로드 제어판 -->
+            <section class="control-panel glass">
+                <div class="panel-header">
+                    <h2>물질 검색 및 MSDS 분석</h2>
+                    <p>CAS No, 물질명을 입력하거나 MSDS PDF 문서를 업로드해 국내외 규제를 분석하세요.</p>
+                </div>
+
+                <!-- 1. 텍스트 검색 영역 -->
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="물질명 또는 CAS 번호 입력 (예: 에탄올, 71-43-2)" autocomplete="off">
+                    <button id="search-btn" class="glow-btn">
+                        <span>진단 시작</span>
+                    </button>
+                </div>
+
+                <div class="divider"><span>또는</span></div>
+
+                <!-- 2. PDF 드래그앤드롭 업로드 영역 -->
+                <div class="upload-area" id="drop-zone">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 16V8M12 8L9 11M12 8L15 11" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M3 15V16C3 18.2091 4.79086 20 7 20H17C19.2091 20 21 18.2091 21 16V15" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M4 10V8C4 5.79086 5.79086 4 8 4H12L16 4C18.2091 4 20 5.79086 20 8V10" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="upload-text">
+                        <span class="highlight">MSDS PDF 파일</span>을 드래그하여 놓거나 클릭하여 업로드
+                    </div>
+                    <p class="upload-info">일반 MSDS PDF 문서 지원 (텍스트 파일 우선)</p>
+                    <input type="file" id="file-input" accept="application/pdf" style="display: none;">
+                </div>
+            </section>
+
+            <!-- 로딩 바 -->
+            <div id="loader" class="loader-container hidden">
+                <div class="spinner"></div>
+                <p>화학물질 데이터베이스 및 MSDS 법적규제를 분석 중입니다...</p>
+            </div>
+
+            <!-- 3. 결과 리포트 출력 영역 -->
+            <section id="result-section" class="result-panel hidden">
+                <!-- 법적 규제 우선권 고지 뱃지 -->
+                <div class="priority-banner" id="priority-banner">
+                    <div class="banner-icon">⚠️</div>
+                    <div class="banner-text">
+                        <strong>MSDS 규제정보 우선 적용 판정</strong><br>
+                        <span>단일 CAS 번호 조회보다 실제 제품 MSDS(제15조 법적 규제현황)에 수록된 고지 의무 및 제한기준을 최우선으로 반영하여 도출한 리포트입니다.</span>
+                    </div>
+                </div>
+
+                <!-- 물질 기본 프로필 정보 -->
+                <div class="substance-profile glass">
+                    <div class="profile-header">
+                        <div class="title-wrap">
+                            <span class="cas-badge" id="res-cas">CAS 00-00-0</span>
+                            <h3 id="res-name-ko">화학 물질명</h3>
+                            <p id="res-name-en">Substance English Name</p>
+                        </div>
+                        <div class="formula-wrap">
+                            <div class="formula-box">
+                                <span class="label">분자식</span>
+                                <span class="val" id="res-formula">H2O</span>
+                            </div>
+                            <div class="formula-box">
+                                <span class="label">분자량</span>
+                                <span class="val" id="res-weight">18.02</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 규제별 진단 그리드 -->
+                <div class="reg-grid">
+                    <!-- 국내법 규제 -->
+                    <div class="reg-card glass" id="card-san-an">
+                        <div class="card-header">
+                            <h4>산업안전보건법</h4>
+                            <span class="status-badge status-safe">안전</span>
+                        </div>
+                        <p class="card-desc">검색 대상이 아닙니다.</p>
+                    </div>
+
+                    <div class="reg-card glass" id="card-hwa-gwan">
+                        <div class="card-header">
+                            <h4>화학물질관리법</h4>
+                            <span class="status-badge status-safe">안전</span>
+                        </div>
+                        <p class="card-desc">검색 대상이 아닙니다.</p>
+                    </div>
+
+                    <div class="reg-card glass" id="card-danger">
+                        <div class="card-header">
+                            <h4>위험물안전관리법</h4>
+                            <span class="status-badge status-safe">안전</span>
+                        </div>
+                        <p class="card-desc">검색 대상이 아닙니다.</p>
+                    </div>
+
+                    <div class="reg-card glass" id="card-high-gas">
+                        <div class="card-header">
+                            <h4>고압가스안전관리법</h4>
+                            <span class="status-badge status-safe">안전</span>
+                        </div>
+                        <p class="card-desc">검색 대상이 아닙니다.</p>
+                    </div>
+
+                    <!-- 국제 운송 규제 -->
+                    <div class="reg-card glass" id="card-imdg">
+                        <div class="card-header">
+                            <h4>해상운송 (IMDG)</h4>
+                            <span class="status-badge status-safe">안전</span>
+                        </div>
+                        <p class="card-desc">해당 없음</p>
+                    </div>
+
+                    <div class="reg-card glass" id="card-iata">
+                        <div class="card-header">
+                            <h4>항공운송 (IATA DGR)</h4>
+                            <span class="status-badge status-safe">안전</span>
+                        </div>
+                        <p class="card-desc">해당 없음</p>
+                    </div>
+                </div>
+
+                <!-- PDF 원본 텍스트 매치 요약 (PDF 분석 시에만 노출) -->
+                <div class="raw-section glass hidden" id="raw-section-container">
+                    <h4>MSDS PDF 분석 원본 대조 정보</h4>
+                    <div class="raw-box">
+                        <h5>제2조 유해성·위험성 기재 정보</h5>
+                        <pre id="raw-sec-2">추출된 텍스트가 없습니다.</pre>
+                    </div>
+                    <div class="raw-box">
+                        <h5>제15조 법적 규제현황 기재 정보</h5>
+                        <pre id="raw-sec-15">추출된 텍스트가 없습니다.</pre>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>© 2026 물질 법령규제 검색기. All Rights Reserved.</p>
+            <p class="notice">※ 본 시스템의 규제 진단 정보는 참조용 데이터이며 법적 증빙 효력이 없습니다. 실제 규제 적용은 공식 관할부처의 고시를 확인하시기 바랍니다.</p>
+        </footer>
+    </div>
+
+    <!-- Script -->
+    <script src="app.js"></script>
+</body>
+</html>

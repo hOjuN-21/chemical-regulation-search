@@ -1,0 +1,5 @@
+.env
+temp_uploaded.pdf
+*.pdf
+__pycache__/
+*.pyc

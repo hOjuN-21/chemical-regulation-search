@@ -1,0 +1,561 @@
+/* ==========================================================
+   화학물질 법령규제 검색기 - 프리미엄 다크 글래스모피즘 테마 CSS
+   ========================================================== */
+
+/* 1. 디자인 시스템 토큰 정의 */
+:root {
+    --bg-base: #0a0d14;
+    --bg-surface: rgba(18, 22, 33, 0.65);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-glow: rgba(0, 242, 254, 0.3);
+    
+    /* 텍스트 컬러 */
+    --text-primary: #f3f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    
+    /* 큐레이트된 신호등 및 포인트 컬러 */
+    --color-accent: #00f2fe; /* 네온 시안 */
+    --color-safe: #10b981;   /* 에메랄드 그린 */
+    --color-warning: #f59e0b;/* 소프트 앰버 오렌지 */
+    --color-danger: #ef4444; /* 마일드 레드 */
+    --color-info: #3b82f6;   /* 오션 블루 */
+}
+
+/* 2. 전역 스타일 초기화 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', 'Noto Sans KR', sans-serif;
+}
+
+body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* 3. 백그라운드 디자인 오브제 */
+.background-decor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.circle {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(140px);
+    opacity: 0.15;
+}
+
+.circle-1 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, var(--color-accent) 0%, transparent 70%);
+    top: -10%;
+    right: -10%;
+}
+
+.circle-2 {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, var(--color-info) 0%, transparent 70%);
+    bottom: -15%;
+    left: -10%;
+}
+
+/* 4. 레이아웃 컨테이너 */
+.app-container {
+    width: 100%;
+    max-width: 960px;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+/* 5. Glassmorphism 공통 유틸리티 */
+.glass {
+    background: var(--bg-surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* 6. 헤더 디자인 */
+.app-header {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.pulse-dot {
+    width: 12px;
+    height: 12px;
+    background-color: var(--color-accent);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--color-accent);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.9); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 20px var(--color-accent); }
+    100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+.logo h1 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #ffffff 30%, var(--color-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+}
+
+/* 7. 제어판 (Control Panel) */
+.control-panel {
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.panel-header h2 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #ffffff;
+}
+
+.panel-header p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* 검색 입력창 */
+.search-box {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+#search-input {
+    flex: 1;
+    background: rgba(10, 13, 20, 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 20px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+#search-input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+    background: rgba(10, 13, 20, 0.8);
+}
+
+/* 글로우 버튼 */
+.glow-btn {
+    background: linear-gradient(135deg, var(--color-accent), var(--color-info));
+    border: none;
+    border-radius: 8px;
+    padding: 14px 28px;
+    color: #000000;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.glow-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+}
+
+/* 구분선 */
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.divider span {
+    padding: 0 12px;
+}
+
+/* 드래그앤드롭 영역 */
+.upload-area {
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 35px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.upload-area:hover, .upload-area.dragover {
+    border-color: var(--color-accent);
+    background: rgba(0, 242, 254, 0.03);
+}
+
+.upload-icon {
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    transition: transform 0.3s ease;
+}
+
+.upload-area:hover .upload-icon {
+    transform: translateY(-4px);
+    color: var(--color-accent);
+}
+
+.upload-text {
+    font-size: 1rem;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+}
+
+.upload-text .highlight {
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+.upload-info {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* 8. 로더 (Loader) */
+.loader-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 40px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.05);
+    border-top: 4px solid var(--color-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loader-container p {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+}
+
+/* 9. 결과 리포트 패널 (Result Panel) */
+.result-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 우선순위 안내 배너 */
+.priority-banner {
+    display: flex;
+    gap: 16px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.02) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+
+.banner-icon {
+    font-size: 1.5rem;
+}
+
+.banner-text strong {
+    color: var(--color-warning);
+    font-size: 0.95rem;
+}
+
+.banner-text span {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* 물질 프로필 카드 */
+.substance-profile {
+    padding: 24px 30px;
+}
+
+.profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.cas-badge {
+    display: inline-block;
+    background: rgba(0, 242, 254, 0.1);
+    color: var(--color-accent);
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 242, 254, 0.2);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+#res-name-ko {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 2px;
+}
+
+#res-name-en {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+}
+
+.formula-wrap {
+    display: flex;
+    gap: 16px;
+}
+
+.formula-box {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-align: center;
+    min-width: 90px;
+}
+
+.formula-box .label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.formula-box .val {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+/* 규제 카드 그리드 */
+.reg-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 768px) {
+    .reg-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .profile-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+.reg-card {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-header h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+/* 상태별 뱃지 스타일 */
+.status-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.status-safe {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--color-safe);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--color-warning);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.status-danger {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--color-danger);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.status-info {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--color-info);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.card-desc {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* 원본 대조 섹션 */
+.raw-section {
+    padding: 24px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.raw-section h4 {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.raw-box h5 {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    border-left: 2px solid var(--color-accent);
+    padding-left: 8px;
+}
+
+.raw-box pre {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* 10. 유틸리티 및 푸터 */
+.hidden {
+    display: none !important;
+}
+
+.app-footer {
+    text-align: center;
+    padding-top: 30px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.app-footer p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.app-footer .notice {
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.4;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+/* 11. 인쇄용 CSS (Print Styles) */
+@media print {
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+    
+    .background-decor, .control-panel, .app-footer, #loader {
+        display: none !important;
+    }
+    
+    .app-container {
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+    
+    .glass {
+        border: 1px solid #cccccc !important;
+        background: none !important;
+        box-shadow: none !important;
+    }
+    
+    .priority-banner {
+        border: 1px solid #f59e0b !important;
+    }
+}
