@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 프록시 적용 배너
                 priorityBanner.classList.remove('hidden');
                 bannerTitle.textContent = "보안 프록시 AI 진단 완료";
-                bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통하여 NVIDIA AI 정밀 분석을 안전하게 수행했습니다. (개인 API 키 미사용)";
+                bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통하여 NVIDIA AI 정밀 분석을 안전하게 수행했습니다.";
                 return;
             }
         }
@@ -390,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isProxyUsed) {
             priorityBanner.classList.remove('hidden');
             bannerTitle.textContent = "보안 프록시 AI 진단 완료";
-            bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통해 업로드된 MSDS 본문을 정밀 진단하였습니다. (API 키 무설정)";
+            bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통해 업로드된 MSDS 본문을 정밀 진단하였습니다.";
         } else if (!nvidiaKey && !proxyUrl) {
             // 둘 다 없는 폴백 진단 상태인 경우
             priorityBanner.classList.remove('hidden');
