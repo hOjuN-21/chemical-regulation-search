@@ -89,6 +89,9 @@ function getLocalChemical(query) {
 // 2. DOM 초기화 및 이벤트 등록
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
+    // 기본 보안 프록시 주소 (자동 배포 시 여기에 반영됩니다)
+    const DEFAULT_PROXY_URL = "https://chem-reg-proxy.archim79.workers.dev";
+
     // UI 포인터
     const searchInput = document.getElementById('search-input');
     const searchBtn = document.getElementById('search-btn');
@@ -222,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 3) API 키는 없지만 보안 프록시 주소(PROXY_URL)가 있다면 프록시를 통해 AI 호출
-        const proxyUrl = localStorage.getItem('PROXY_URL');
+        const proxyUrl = localStorage.getItem('PROXY_URL') || DEFAULT_PROXY_URL;
         if (proxyUrl) {
             showLoader(true, `사내 보안 프록시 AI 서버로 '${query}'의 규제를 진단 요청 중입니다...`);
             const aiResult = await callProxyAPIForName(proxyUrl, query);
@@ -339,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 4) NVIDIA Nemotron LLM 진단 수행 (키 유무 확인)
         const nvidiaKey = localStorage.getItem('NVIDIA_API_KEY');
-        const proxyUrl = localStorage.getItem('PROXY_URL');
+        const proxyUrl = localStorage.getItem('PROXY_URL') || DEFAULT_PROXY_URL;
         let parsedRegulations = null;
         let isProxyUsed = false;
 
