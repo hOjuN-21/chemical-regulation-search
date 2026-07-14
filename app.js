@@ -325,18 +325,18 @@ document.addEventListener('DOMContentLoaded', () => {
         let sec2Text = '';
         const sec2Start = text.indexOf('2. 유해성');
         if (sec2Start !== -1) {
-            sec2Text = text.substring(sec2Start, sec2Start + 1200);
+            sec2Text = text.substring(sec2Start, sec2Start + 500);
         }
 
         let sec15Text = '';
         const sec15Start = text.indexOf('15. 법적');
         if (sec15Start !== -1) {
-            sec15Text = text.substring(sec15Start, sec15Start + 1500);
+            sec15Text = text.substring(sec15Start, sec15Start + 400);
         } else {
             // 다른 양식 대응
             const sec15StartAlt = text.indexOf('15. 법적규제');
             if (sec15StartAlt !== -1) {
-                sec15Text = text.substring(sec15StartAlt, sec15StartAlt + 1500);
+                sec15Text = text.substring(sec15StartAlt, sec15StartAlt + 400);
             }
         }
 

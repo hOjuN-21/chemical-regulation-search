@@ -47,7 +47,7 @@ export default {
         }
 
         // Cloudflare Worker에 설정된 NVIDIA_API_KEY 체크
-        const apiKey = env.NVIDIA_API_KEY;
+        const apiKey = env.NVIDIA_API_KEY ? env.NVIDIA_API_KEY.trim() : null;
         if (!apiKey) {
             return jsonError("Server Configuration Error: NVIDIA_API_KEY is missing on Worker", 500, corsHeaders);
         }
@@ -65,7 +65,7 @@ export default {
                     return jsonError("Missing required parameters: sec2 and sec15", 400, corsHeaders);
                 }
 
-                const systemPrompt = `당신은 대한민국 화학물질 규제 전문가입니다. 제공된 화학물질 MSDS의 유해성(2조) 및 법적규제현황(15조) 텍스트를 분석하여 요청하는 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거를 요약하여 반환해야 합니다.
+                const systemPrompt = `You are a strict JSON data generator. 당신은 대한민국 화학물질 규제 전문가입니다. 제공된 화학물질 MSDS의 유해성(2조) 및 법적규제현황(15조) 텍스트를 분석하여 요청하는 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거를 요약하여 반환해야 합니다.
 분류할 대상 법령 및 키워드:
 1. san_an (산업안전보건법)
 2. hwa_gwan (화학물질관리법)
@@ -74,7 +74,7 @@ export default {
 5. imdg (해상운송 IMDG)
 6. iata (항공운송 IATA DGR)
 
-반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
+CRITICAL INSTRUCTION: You MUST output ONLY valid JSON. No explanations, no thoughts, no markdown formatting. 절대로 당신의 생각 과정(Chain of Thought)이나 설명을 포함하지 마십시오. 첫 글자는 반드시 '{' 이어야 하며, 마지막 글자는 반드시 '}' 이어야 합니다. 어떠한 Markdown 코드 블록(\`\`\`)도 사용하지 마십시오. 오직 순수 JSON 데이터만 반환하십시오.
 JSON 형식:
 {
   "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
@@ -84,7 +84,7 @@ JSON 형식:
   "imdg": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
   "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}
 }`;
-                const userPrompt = `MSDS 제2조 유해성 위험성:\n${sec2}\n\nMSDS 제15조 법적 규제현황:\n${sec15}`;
+                const userPrompt = `MSDS 제2조 유해성 위험성:\n${sec2}\n\nMSDS 제15조 법적 규제현황:\n${sec15}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
                 
                 const aiResponse = await callNvidiaNemotron(apiKey, systemPrompt, userPrompt);
                 return new Response(JSON.stringify(aiResponse), {
@@ -99,7 +99,7 @@ JSON 형식:
                     return jsonError("Missing required parameter: name", 400, corsHeaders);
                 }
 
-                const systemPrompt = `당신은 대한민국 화학물질 규제 전문가입니다. 입력받은 화학물질명에 대해 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거와 규제치를 요약하여 반환해야 합니다.
+                const systemPrompt = `You are a strict JSON data generator. 당신은 대한민국 화학물질 규제 전문가입니다. 입력받은 화학물질명에 대해 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거와 규제치를 요약하여 반환해야 합니다.
 분류할 대상 법령:
 1. san_an (산업안전보건법)
 2. hwa_gwan (화학물질관리법)
@@ -108,7 +108,7 @@ JSON 형식:
 5. imdg (해상운송 IMDG)
 6. iata (항공운송 IATA DGR)
 
-반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
+CRITICAL INSTRUCTION: You MUST output ONLY valid JSON. No explanations, no thoughts, no markdown formatting. 절대로 당신의 생각 과정(Chain of Thought)이나 설명을 포함하지 마십시오. 첫 글자는 반드시 '{' 이어야 하며, 마지막 글자는 반드시 '}' 이어야 합니다. 어떠한 Markdown 코드 블록(\`\`\`)도 사용하지 마십시오. 오직 순수 JSON 데이터만 반환하십시오.
 JSON 형식:
 {
   "cas_no": "물질의 CAS 번호 (확인 불가 시 미확인)",
@@ -125,7 +125,7 @@ JSON 형식:
     "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}
   }
 }`;
-                const userPrompt = `화학물질명: ${name}`;
+                const userPrompt = `화학물질명: ${name}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
 
                 const aiResponse = await callNvidiaNemotron(apiKey, systemPrompt, userPrompt);
                 return new Response(JSON.stringify(aiResponse), {
@@ -177,5 +177,24 @@ async function callNvidiaNemotron(apiKey, systemPrompt, userPrompt) {
         content = content.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
     }
 
-    return JSON.parse(content);
+    // JSON 부분만 추출 및 닫는 괄호 복구
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        let extractedJson = jsonMatch[0];
+        try {
+            return JSON.parse(extractedJson);
+        } catch (e) {
+            try {
+                return JSON.parse(extractedJson + "}");
+            } catch (e2) {
+                try {
+                    return JSON.parse(extractedJson + "}}");
+                } catch (e3) {
+                    throw new Error("Invalid JSON inside braces: " + extractedJson);
+                }
+            }
+        }
+    }
+
+    throw new Error("AI generated non-JSON response: " + content);
 }
