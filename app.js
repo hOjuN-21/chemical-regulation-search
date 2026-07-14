@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveSettings = document.getElementById('save-settings');
     const clearSettings = document.getElementById('clear-settings');
     const inputNvidiaKey = document.getElementById('input-nvidia-key');
+    const inputProxyUrl = document.getElementById('input-proxy-url');
     const inputDatagoKey = document.getElementById('input-datago-key');
 
     // 결과 렌더링 영역
@@ -133,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 모달창 토글 이벤트
     settingsBtn.addEventListener('click', () => {
         inputNvidiaKey.value = localStorage.getItem('NVIDIA_API_KEY') || '';
+        inputProxyUrl.value = localStorage.getItem('PROXY_URL') || '';
         inputDatagoKey.value = localStorage.getItem('DATA_GO_KEY') || '';
         settingsModal.classList.remove('hidden');
     });
@@ -141,16 +143,19 @@ document.addEventListener('DOMContentLoaded', () => {
     
     saveSettings.addEventListener('click', () => {
         localStorage.setItem('NVIDIA_API_KEY', inputNvidiaKey.value.trim());
+        localStorage.setItem('PROXY_URL', inputProxyUrl.value.trim());
         localStorage.setItem('DATA_GO_KEY', inputDatagoKey.value.trim());
-        alert('API 연동 키가 브라우저에 안전하게 저장되었습니다.');
+        alert('API 연동 설정이 브라우저에 안전하게 저장되었습니다.');
         settingsModal.classList.add('hidden');
     });
 
     clearSettings.addEventListener('click', () => {
-        if (confirm('저장된 모든 API 키 설정을 삭제하고 초기화할까요?')) {
+        if (confirm('저장된 모든 API 키 및 프록시 설정을 삭제하고 초기화할까요?')) {
             localStorage.removeItem('NVIDIA_API_KEY');
+            localStorage.removeItem('PROXY_URL');
             localStorage.removeItem('DATA_GO_KEY');
             inputNvidiaKey.value = '';
+            inputProxyUrl.value = '';
             inputDatagoKey.value = '';
             alert('초기화 완료되었습니다.');
         }
@@ -204,10 +209,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 2) NVIDIA Nemotron AI를 통한 실시간 물질명 검색 (API 키가 등록되어 있는 경우)
+        // 2) NVIDIA API 키가 있다면 직접 AI 호출
         const nvidiaKey = localStorage.getItem('NVIDIA_API_KEY');
         if (nvidiaKey) {
-            showLoader(true, `NVIDIA Nemotron 초거대 AI로 '${query}'의 법적 규제를 정밀 탐색 중입니다...`);
+            showLoader(true, `NVIDIA Nemotron 초거대 AI로 '${query}'의 법적 규제를 직접 정밀 탐색 중입니다...`);
             const aiResult = await callNvidiaNemotronForName(nvidiaKey, query);
             showLoader(false);
             if (aiResult) {
@@ -216,7 +221,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 3) API 키가 없을 때의 동적 룰 진단 폴백
+        // 3) API 키는 없지만 보안 프록시 주소(PROXY_URL)가 있다면 프록시를 통해 AI 호출
+        const proxyUrl = localStorage.getItem('PROXY_URL');
+        if (proxyUrl) {
+            showLoader(true, `사내 보안 프록시 AI 서버로 '${query}'의 규제를 진단 요청 중입니다...`);
+            const aiResult = await callProxyAPIForName(proxyUrl, query);
+            showLoader(false);
+            if (aiResult) {
+                renderResults(aiResult);
+                // 프록시 적용 배너
+                priorityBanner.classList.remove('hidden');
+                bannerTitle.textContent = "보안 프록시 AI 진단 완료";
+                bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통하여 NVIDIA AI 정밀 분석을 안전하게 수행했습니다. (개인 API 키 미사용)";
+                return;
+            }
+        }
+
+        // 4) API 키와 프록시 주소가 모두 없을 때의 동적 룰 진단 폴백
         const casPattern = /^\d{2,7}-\d{2}-\d$/;
         let responseData = {
             "cas_no": casPattern.test(query) ? query : "미확인",
@@ -228,16 +249,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // 경고 배너 유도
-        responseData.msds_priority = false; // MSDS 업로드가 아닌 텍스트 검색임
+        responseData.msds_priority = false;
         
         setTimeout(() => {
             renderResults(responseData);
             showLoader(false);
             
-            // API 키 입력 유도를 위한 안내 배너 강제 노출
+            // API 키 또는 프록시 입력 유도를 위한 안내 배너 강제 노출
             priorityBanner.classList.remove('hidden');
-            bannerTitle.textContent = "AI 실시간 정밀진단 비활성화 상태";
-            bannerDesc.textContent = "우측 상단의 톱니바퀴 버튼을 눌러 NVIDIA API 키를 등록하시면, 이 물질의 실제 국내법 및 국제운송법 저촉 여부를 Nemotron 초거대 AI가 실시간으로 판정해 드립니다.";
+            bannerTitle.textContent = "AI 실시간 정밀진단 비활성화 상태 (로컬 룰 판정)";
+            bannerDesc.textContent = "우측 상단의 톱니바퀴 버튼을 클릭하여 'NVIDIA API 키' 또는 사내 '보안 프록시 URL'을 등록하시면, 이 물질의 법적 저촉 여부를 Nemotron 초거대 AI가 실시간으로 분석해 드립니다.";
         }, 300);
     }
 
@@ -318,11 +339,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 4) NVIDIA Nemotron LLM 진단 수행 (키 유무 확인)
         const nvidiaKey = localStorage.getItem('NVIDIA_API_KEY');
+        const proxyUrl = localStorage.getItem('PROXY_URL');
         let parsedRegulations = null;
+        let isProxyUsed = false;
 
         if (nvidiaKey) {
-            showLoader(true, 'NVIDIA Nemotron 초거대 AI 모델로 규제 조항을 정밀 진단 중입니다...');
+            showLoader(true, 'NVIDIA Nemotron 초거대 AI 모델로 규제 조항을 직접 정밀 진단 중입니다...');
             parsedRegulations = await callNvidiaNemotronAPI(nvidiaKey, sec2Text, sec15Text);
+        } else if (proxyUrl) {
+            showLoader(true, '사내 보안 프록시 AI 서버로 MSDS 규제 분석을 요청 중입니다...');
+            parsedRegulations = await callProxyAPIForPdf(proxyUrl, sec2Text, sec15Text);
+            if (parsedRegulations) isProxyUsed = true;
         }
 
         // 5) LLM 응답 실패 시 브라우저단 로컬 규칙 엔진 폴백
@@ -356,6 +383,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showLoader(false);
         renderResults(finalData);
+
+        if (isProxyUsed) {
+            priorityBanner.classList.remove('hidden');
+            bannerTitle.textContent = "보안 프록시 AI 진단 완료";
+            bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통해 업로드된 MSDS 본문을 정밀 진단하였습니다. (API 키 무설정)";
+        } else if (!nvidiaKey && !proxyUrl) {
+            // 둘 다 없는 폴백 진단 상태인 경우
+            priorityBanner.classList.remove('hidden');
+            bannerTitle.textContent = "로컬 룰 폴백 진단 완료";
+            bannerDesc.textContent = "NVIDIA API 키 또는 사내 보안 프록시 주소가 없어, 브라우저 내장 규칙 파서로 대체 진단하였습니다. (일부 정보가 부정확할 수 있음)";
+        }
+    }
+
+    // ==========================================
+    // 4-2. Cloudflare Workers 프록시 API 통신 함수
+    // ==========================================
+    async function callProxyAPIForName(proxyUrl, name) {
+        // 프록시 주소 포맷 검증 및 정리
+        let baseUrl = proxyUrl.trim();
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+        const endpoint = `${baseUrl}/api/diagnose-name`;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ name: name })
+            });
+
+            if (!response.ok) throw new Error(`프록시 서버 응답 실패 (Status: ${response.status})`);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error("[프록시 물질명 진단 실패]", error);
+            alert("보안 프록시 서버 연동에 실패했습니다. 주소가 정확한지, 혹은 서버가 켜져 있는지 확인해 주세요.");
+            return null;
+        }
+    }
+
+    async function callProxyAPIForPdf(proxyUrl, sec2, sec15) {
+        let baseUrl = proxyUrl.trim();
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+        const endpoint = `${baseUrl}/api/diagnose-pdf`;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    sec2: sec2,
+                    sec15: sec15
+                })
+            });
+
+            if (!response.ok) throw new Error(`프록시 서버 응답 실패 (Status: ${response.status})`);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error("[프록시 MSDS PDF 진단 실패]", error);
+            alert("보안 프록시 서버 연동에 실패했습니다. 주소가 정확한지 확인해 주세요.");
+            return null;
+        }
     }
 
     // ==========================================
