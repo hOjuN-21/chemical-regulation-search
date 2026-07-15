@@ -91,6 +91,7 @@ function getLocalChemical(query) {
 document.addEventListener('DOMContentLoaded', () => {
     // 기본 보안 프록시 주소 (자동 배포 시 여기에 반영됩니다)
     const DEFAULT_PROXY_URL = "https://chem-reg-proxy.archim79.workers.dev";
+    const PDF_PROXY_TIMEOUT_MS = 8000;
 
     // UI 포인터
     const searchInput = document.getElementById('search-input');
@@ -293,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoader(true, '웹 브라우저 내부에서 PDF 텍스트를 추출하는 중입니다...');
         hideResults();
 
+        let uploadFinished = false;
         try {
             const fileReader = new FileReader();
             fileReader.onload = async function() {
@@ -317,17 +319,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("[PDF 파싱 실패]", error);
                     showLoader(false);
                     showStatusBanner("PDF 파싱 오류", `PDF 텍스트 추출에 실패했습니다. ${error.message}`);
+                } finally {
+                    uploadFinished = true;
+                    showLoader(false);
                 }
             };
             fileReader.onerror = function() {
+                uploadFinished = true;
                 showLoader(false);
                 showStatusBanner("PDF 파일 읽기 오류", "PDF 파일을 읽는 중 오류가 발생했습니다. 파일을 다시 선택해 주세요.");
             };
             fileReader.readAsArrayBuffer(file);
         } catch (error) {
+            uploadFinished = true;
             showLoader(false);
             showStatusBanner("PDF 파싱 오류", `PDF 처리 중 오류가 발생했습니다. ${error.message}`);
         }
+
+        setTimeout(() => {
+            if (!uploadFinished) {
+                showLoader(false);
+                showStatusBanner("분석 지연", "AI 서버 응답이 지연되어 로컬 룰 판정 결과를 우선 표시합니다. 잠시 후 다시 업로드해도 됩니다.");
+            }
+        }, PDF_PROXY_TIMEOUT_MS + 2000);
     }
 
     function extractPdfPageText(items) {
@@ -397,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function buildFallbackMsdsExcerpt(text, maxLength = 1800) {
         const normalized = normalizePdfText(text);
-        const keywords = ['법적 규제', '법적규제', 'Regulatory Information', 'RegulatoryInformation', '유해성', '위험성', 'Hazards Identification', 'HazardsIdentification', '산업안전', '화학물질관리', '위험물', '고압가스', 'UN'];
+        const keywords = ['법적 규제', '법적규제', 'Regulatory Information', 'RegulatoryInformation', 'Regulatory Info', 'RegulatoryInfo', 'Regulation Info', 'RegulationInfo', '유해성', '위험성', 'Hazards Identification', 'HazardsIdentification', 'Hazard Info', 'HazardInfo', '산업안전', '화학물질관리', '위험물', '고압가스', 'UN'];
         const hitPositions = keywords
             .map(keyword => normalized.indexOf(keyword))
             .filter(index => index >= 0);
@@ -429,8 +443,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3) 섹션 2 및 15조 영역 텍스트 추출
         const fallbackExcerpt = buildFallbackMsdsExcerpt(normalizedText);
-        let sec2Text = extractMsdsSection(normalizedText, 2, ['유해성', '위험성', '유해 위험성', 'Hazard identification', 'Hazards identification', 'HazardsIdentification'], 1200);
-        let sec15Text = extractMsdsSection(normalizedText, 15, ['법적', '법적규제', '법적 규제', '법적 규제현황', 'Regulatory information', 'RegulatoryInformation'], 1600);
+        let sec2Text = extractMsdsSection(normalizedText, 2, ['유해성', '위험성', '유해 위험성', 'Hazard identification', 'Hazards identification', 'HazardsIdentification', 'Hazard info', 'HazardInfo'], 1200);
+        let sec15Text = extractMsdsSection(normalizedText, 15, ['법적', '법적규제', '법적 규제', '법적 규제현황', 'Regulatory information', 'RegulatoryInformation', 'Regulatory info', 'RegulatoryInfo', 'Regulation information', 'Regulation info'], 1600);
 
         if (!sec2Text) sec2Text = fallbackExcerpt;
         if (!sec15Text) sec15Text = fallbackExcerpt;
@@ -537,7 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const endpoint = `${baseUrl}/api/diagnose-pdf`;
 
         try {
-            const response = await fetch(endpoint, {
+            const response = await fetchWithTimeout(endpoint, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -546,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     sec2: sec2,
                     sec15: sec15
                 })
-            });
+            }, PDF_PROXY_TIMEOUT_MS);
 
             if (!response.ok) {
                 const message = await readApiError(response);
@@ -568,6 +582,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return text ? `- ${text.slice(0, 300)}` : '';
         } catch (error) {
             return '';
+        }
+    }
+
+    async function fetchWithTimeout(url, options, timeoutMs) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            return await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
@@ -686,7 +714,7 @@ JSON 형식:
         const userPrompt = `MSDS 제2조 유해성 위험성:\n${sec2}\n\nMSDS 제15조 법적 규제현황:\n${sec15}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
 
         try {
-            const response = await fetch(url, {
+            const response = await fetchWithTimeout(url, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -701,7 +729,7 @@ JSON 형식:
                     "temperature": 0.1,
                     "max_tokens": 2048
                 })
-            });
+            }, PDF_PROXY_TIMEOUT_MS);
 
             if (!response.ok) {
                 const message = await readApiError(response);
