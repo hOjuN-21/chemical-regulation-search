@@ -81,6 +81,14 @@ function buildNameFallback(query, warning) {
     };
 }
 
+function buildPdfFallback(warning) {
+    const fallback = normalizeRegulations(null);
+    for (const key of Object.keys(fallback)) {
+        fallback[key].desc = `${fallback[key].desc} ${warning}`;
+    }
+    return fallback;
+}
+
 function extractJsonObject(content) {
     const firstBrace = content.indexOf("{");
     if (firstBrace === -1) return null;
@@ -181,7 +189,13 @@ JSON 형식:
 }`;
                 const userPrompt = `MSDS 제2조 유해성 위험성:\n${safeSec2}\n\nMSDS 제15조 법적 규제현황:\n${safeSec15}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
                 
-                const aiResponse = await callNvidiaNemotron(apiKey, systemPrompt, userPrompt);
+                let aiResponse;
+                try {
+                    aiResponse = await callNvidiaNemotron(apiKey, systemPrompt, userPrompt);
+                } catch (error) {
+                    console.error("[diagnose-pdf] AI response processing failed", error);
+                    aiResponse = buildPdfFallback("잠시 후 다시 업로드하거나 MSDS 원문을 직접 대조해 주세요.");
+                }
                 return new Response(JSON.stringify(normalizeRegulations(aiResponse)), {
                     headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders }
                 });

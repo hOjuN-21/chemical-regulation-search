@@ -523,6 +523,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function extractJsonObject(content) {
+        const firstBrace = content.indexOf("{");
+        if (firstBrace === -1) return null;
+
+        let depth = 0;
+        let inString = false;
+        let isEscaped = false;
+
+        for (let i = firstBrace; i < content.length; i++) {
+            const char = content[i];
+
+            if (isEscaped) {
+                isEscaped = false;
+                continue;
+            }
+
+            if (char === "\\") {
+                isEscaped = true;
+                continue;
+            }
+
+            if (char === '"') {
+                inString = !inString;
+                continue;
+            }
+
+            if (inString) continue;
+
+            if (char === "{") depth++;
+            if (char === "}") depth--;
+
+            if (depth === 0) {
+                return content.slice(firstBrace, i + 1);
+            }
+        }
+
+        return content.slice(firstBrace);
+    }
+
+    function parseAiJsonContent(content) {
+        let cleaned = (content || '').trim();
+        if (cleaned.startsWith("```")) {
+            cleaned = cleaned.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
+        }
+
+        const extractedJson = extractJsonObject(cleaned);
+        if (!extractedJson) {
+            throw new Error("AI 응답에서 JSON 객체를 찾지 못했습니다.");
+        }
+
+        const candidates = [extractedJson, `${extractedJson}}`, `${extractedJson}}}`];
+        for (const candidate of candidates) {
+            try {
+                return JSON.parse(candidate);
+            } catch (error) {
+                // 다음 복구 후보를 시도합니다.
+            }
+        }
+
+        throw new Error(`AI 응답 JSON 파싱 실패: ${extractedJson.slice(0, 300)}`);
+    }
+
+    function normalizeRegulationPayload(value) {
+        const fallback = {
+            san_an: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. MSDS 원문 제15조를 직접 확인해 주세요." },
+            hwa_gwan: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. 화학물질관리법 대상 여부를 별도 확인해 주세요." },
+            danger: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. 위험물안전관리법 유별 및 지정수량을 별도 확인해 주세요." },
+            high_gas: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. 고압가스 해당 여부를 별도 확인해 주세요." },
+            imdg: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. UN 번호 및 IMDG 등급을 별도 확인해 주세요." },
+            iata: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. UN 번호 및 IATA DGR 등급을 별도 확인해 주세요." }
+        };
+        const source = value && typeof value === "object" ? value : {};
+
+        for (const key of Object.keys(fallback)) {
+            const item = source[key];
+            if (item && typeof item === "object") {
+                fallback[key] = {
+                    status: typeof item.status === "string" ? item.status : "주의",
+                    desc: typeof item.desc === "string" ? item.desc : fallback[key].desc
+                };
+            }
+        }
+
+        return fallback;
+    }
+
     // ==========================================
     // 5. NVIDIA Nemotron API 직접 fetch 통신 (PDF)
     // ==========================================
@@ -538,7 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
 5. imdg (해상운송 IMDG)
 6. iata (항공운송 IATA DGR)
 
-반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오. 각 desc는 한글 120자 이내로 간결하게 작성하십시오.
+CRITICAL INSTRUCTION: You MUST output ONLY valid JSON. No explanations, no thoughts, no markdown formatting. 첫 글자는 반드시 '{' 이어야 하며, 마지막 글자는 반드시 '}' 이어야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오. 각 desc는 한글 120자 이내로 간결하게 작성하십시오.
 JSON 형식:
 {
   "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
@@ -549,7 +635,7 @@ JSON 형식:
   "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}
 }`;
 
-        const userPrompt = `MSDS 제2조 유해성 위험성:\n${sec2}\n\nMSDS 제15조 법적 규제현황:\n${sec15}`;
+        const userPrompt = `MSDS 제2조 유해성 위험성:\n${sec2}\n\nMSDS 제15조 법적 규제현황:\n${sec15}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
 
         try {
             const response = await fetch(url, {
@@ -575,13 +661,8 @@ JSON 형식:
             }
 
             const resData = await response.json();
-            let content = resData.choices[0].message.content.trim();
-
-            if (content.startsWith("```")) {
-                content = content.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
-            }
-
-            return JSON.parse(content);
+            const content = resData?.choices?.[0]?.message?.content?.trim();
+            return normalizeRegulationPayload(parseAiJsonContent(content));
         } catch (error) {
             console.error("[NVIDIA LLM 통신 실패]", error);
             return null;
@@ -603,7 +684,7 @@ JSON 형식:
 5. imdg (해상운송 IMDG)
 6. iata (항공운송 IATA DGR)
 
-반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
+CRITICAL INSTRUCTION: You MUST output ONLY valid JSON. No explanations, no thoughts, no markdown formatting. 첫 글자는 반드시 '{' 이어야 하며, 마지막 글자는 반드시 '}' 이어야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
 각 desc는 한글 120자 이내로 간결하게 작성하십시오.
 JSON 형식:
 {
@@ -633,7 +714,7 @@ JSON 형식:
                     "model": "nvidia/nemotron-3-ultra-550b-a55b",
                     "messages": [
                         {"role": "system", "content": systemPrompt},
-                        {"role": "user", "content": `검색 물질명: ${name}`}
+                        {"role": "user", "content": `검색 물질명: ${name}\n\nCRITICAL: Output ONLY a JSON object. No other text.`}
                     ],
                     "temperature": 0.1,
                     "max_tokens": 2048
@@ -646,13 +727,9 @@ JSON 형식:
             }
 
             const resData = await response.json();
-            let content = resData.choices[0].message.content.trim();
-
-            if (content.startsWith("```")) {
-                content = content.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
-            }
-
-            const parsed = JSON.parse(content);
+            const content = resData?.choices?.[0]?.message?.content?.trim();
+            const parsed = parseAiJsonContent(content);
+            parsed.regulations = normalizeRegulationPayload(parsed.regulations);
             parsed.msds_priority = false;
             return parsed;
         } catch (error) {
