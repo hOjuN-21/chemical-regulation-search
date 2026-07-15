@@ -134,6 +134,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawSec2 = document.getElementById('raw-sec-2');
     const rawSec15 = document.getElementById('raw-sec-15');
 
+    function showStatusBanner(title, message) {
+        resultSection.classList.remove('hidden');
+        rawSection.classList.add('hidden');
+        priorityBanner.classList.remove('hidden');
+        bannerTitle.textContent = title;
+        bannerDesc.textContent = message;
+    }
+
     // 모달창 토글 이벤트
     settingsBtn.addEventListener('click', () => {
         inputNvidiaKey.value = localStorage.getItem('NVIDIA_API_KEY') || '';
@@ -276,7 +284,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handlePdfFile(file) {
         const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
         if (!isPdf) {
-            alert('PDF 형식의 MSDS 문서만 지원합니다.');
+            showLoader(false);
+            hideResults();
+            showStatusBanner("지원하지 않는 파일 형식", "PDF 형식의 MSDS 문서만 지원합니다.");
             return;
         }
 
@@ -294,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const textContent = await page.getTextContent();
-                        const pageText = textContent.items.map(item => item.str).join(' ');
+                        const pageText = extractPdfPageText(textContent.items);
                         fullText += pageText + '\n';
                     }
 
@@ -305,19 +315,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     await parseAndAnalyzeMsds(fullText);
                 } catch (error) {
                     console.error("[PDF 파싱 실패]", error);
-                    alert(`PDF 파싱 중 에러 발생: ${error.message}`);
                     showLoader(false);
+                    showStatusBanner("PDF 파싱 오류", `PDF 텍스트 추출에 실패했습니다. ${error.message}`);
                 }
             };
             fileReader.onerror = function() {
-                alert('PDF 파일을 읽는 중 오류가 발생했습니다.');
                 showLoader(false);
+                showStatusBanner("PDF 파일 읽기 오류", "PDF 파일을 읽는 중 오류가 발생했습니다. 파일을 다시 선택해 주세요.");
             };
             fileReader.readAsArrayBuffer(file);
         } catch (error) {
-            alert(`PDF 파싱 중 에러 발생: ${error.message}`);
             showLoader(false);
+            showStatusBanner("PDF 파싱 오류", `PDF 처리 중 오류가 발생했습니다. ${error.message}`);
         }
+    }
+
+    function extractPdfPageText(items) {
+        let lastY = null;
+        let pageText = '';
+
+        for (const item of items) {
+            const text = typeof item.str === 'string' ? item.str.trim() : '';
+            if (!text) continue;
+
+            const y = Array.isArray(item.transform) ? item.transform[5] : null;
+            const isNewLine = lastY !== null && typeof y === 'number' && Math.abs(y - lastY) > 5;
+
+            if (isNewLine) {
+                pageText += '\n';
+            } else if (pageText && !pageText.endsWith('\n') && !/[\s(/-]$/.test(pageText)) {
+                pageText += ' ';
+            }
+
+            pageText += text;
+            if (typeof y === 'number') lastY = y;
+        }
+
+        return pageText;
     }
 
     function normalizePdfText(text) {
@@ -330,8 +364,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function extractMsdsSection(text, sectionNumber, titleKeywords, maxLength) {
         const normalized = normalizePdfText(text);
-        const titlePattern = titleKeywords.map(keyword => keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-        const startRegex = new RegExp(`(?:^|\\n|\\s)${sectionNumber}\\s*[\\.\\)]?\\s*(?:${titlePattern})`, 'i');
+        const titlePattern = titleKeywords.map(toFlexibleKeywordPattern).join('|');
+        const sectionNumPattern = `(?:제\\s*${sectionNumber}\\s*조|Section\\s*${sectionNumber}|${sectionNumber})`;
+        const startRegex = new RegExp(`(?:^|\\n|\\s)${sectionNumPattern}\\s*[\\.\\):\\-]?\\s*(?:${titlePattern})`, 'i');
         const startMatch = normalized.match(startRegex);
 
         if (!startMatch || startMatch.index === undefined) {
@@ -339,7 +374,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const start = startMatch.index;
-        const nextSectionRegex = new RegExp(`(?:^|\\n|\\s)${sectionNumber + 1}\\s*[\\.\\)]?\\s+`, 'i');
+        const nextSectionNumber = sectionNumber + 1;
+        const nextSectionPattern = `(?:제\\s*${nextSectionNumber}\\s*조|Section\\s*${nextSectionNumber}|${nextSectionNumber})`;
+        const nextSectionRegex = new RegExp(`(?:^|\\n|\\s)${nextSectionPattern}\\s*[\\.\\):\\-]?\\s*`, 'i');
         const remainder = normalized.slice(start + startMatch[0].length);
         const nextMatch = remainder.match(nextSectionRegex);
         const end = nextMatch && nextMatch.index !== undefined
@@ -349,9 +386,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return normalized.slice(start, end).trim().slice(0, maxLength);
     }
 
+    function toFlexibleKeywordPattern(keyword) {
+        return keyword
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('\\s*');
+    }
+
     function buildFallbackMsdsExcerpt(text, maxLength = 1800) {
         const normalized = normalizePdfText(text);
-        const keywords = ['법적 규제', '법적규제', '유해성', '위험성', '산업안전', '화학물질관리', '위험물', '고압가스', 'UN'];
+        const keywords = ['법적 규제', '법적규제', 'Regulatory Information', 'RegulatoryInformation', '유해성', '위험성', 'Hazards Identification', 'HazardsIdentification', '산업안전', '화학물질관리', '위험물', '고압가스', 'UN'];
         const hitPositions = keywords
             .map(keyword => normalized.indexOf(keyword))
             .filter(index => index >= 0);
@@ -383,8 +429,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3) 섹션 2 및 15조 영역 텍스트 추출
         const fallbackExcerpt = buildFallbackMsdsExcerpt(normalizedText);
-        let sec2Text = extractMsdsSection(normalizedText, 2, ['유해성', '위험성', '유해 위험성', 'Hazards identification'], 1200);
-        let sec15Text = extractMsdsSection(normalizedText, 15, ['법적', '법적규제', '법적 규제', 'Regulatory information'], 1600);
+        let sec2Text = extractMsdsSection(normalizedText, 2, ['유해성', '위험성', '유해 위험성', 'Hazard identification', 'Hazards identification', 'HazardsIdentification'], 1200);
+        let sec15Text = extractMsdsSection(normalizedText, 15, ['법적', '법적규제', '법적 규제', '법적 규제현황', 'Regulatory information', 'RegulatoryInformation'], 1600);
 
         if (!sec2Text) sec2Text = fallbackExcerpt;
         if (!sec15Text) sec15Text = fallbackExcerpt;
@@ -394,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const proxyUrl = localStorage.getItem('PROXY_URL') || DEFAULT_PROXY_URL;
         let parsedRegulations = null;
         let isProxyUsed = false;
+        let isLocalFallbackUsed = false;
 
         if (nvidiaKey) {
             showLoader(true, 'NVIDIA Nemotron 초거대 AI 모델로 규제 조항을 직접 정밀 진단 중입니다...');
@@ -410,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!parsedRegulations) {
             console.log('[시스템] 로컬 브라우저 규칙 파서가 가동됩니다.');
             parsedRegulations = runClientSideRuleParser(sec15Text, normalizedText);
+            isLocalFallbackUsed = true;
         }
 
         // 6) 최종 결과 데이터 조립
@@ -442,11 +490,10 @@ document.addEventListener('DOMContentLoaded', () => {
             priorityBanner.classList.remove('hidden');
             bannerTitle.textContent = "보안 프록시 AI 진단 완료";
             bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통해 업로드된 MSDS 본문을 정밀 진단하였습니다.";
-        } else if (!nvidiaKey && !proxyUrl) {
-            // 둘 다 없는 폴백 진단 상태인 경우
+        } else if (isLocalFallbackUsed) {
             priorityBanner.classList.remove('hidden');
             bannerTitle.textContent = "로컬 룰 폴백 진단 완료";
-            bannerDesc.textContent = "NVIDIA API 키 또는 사내 보안 프록시 주소가 없어, 브라우저 내장 규칙 파서로 대체 진단하였습니다. (일부 정보가 부정확할 수 있음)";
+            bannerDesc.textContent = "AI 서버 응답을 받지 못했거나 네트워크가 불안정하여 브라우저 내장 한글/영문 규칙 파서로 즉시 대체 진단했습니다.";
         }
     }
 
@@ -509,7 +556,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return data;
         } catch (error) {
             console.error("[프록시 MSDS PDF 진단 실패]", error);
-            alert(`보안 프록시 서버 연동에 실패했습니다.\n${error.message}`);
+            showLoader(false);
+            showStatusBanner("보안 프록시 연결 실패", `AI 서버 응답을 받지 못해 브라우저 로컬 룰 판정으로 전환합니다. ${error.message}`);
             return null;
         }
     }
@@ -741,14 +789,80 @@ JSON 형식:
     // ==========================================
     // 6. 브라우저단 로컬 키워드 매칭 규칙 엔진 (PDF)
     // ==========================================
+    function isKeywordNegative(text, keyword, radius = 25) {
+        const lowerText = text.toLowerCase();
+        const lowerKeyword = keyword.toLowerCase();
+        let searchFrom = 0;
+        let foundKeyword = false;
+
+        while (searchFrom < lowerText.length) {
+            const index = lowerText.indexOf(lowerKeyword, searchFrom);
+            if (index === -1) return foundKeyword;
+            foundKeyword = true;
+
+            const start = Math.max(0, index - radius);
+            const end = Math.min(lowerText.length, index + lowerKeyword.length + radius);
+            const around = lowerText.slice(start, end);
+            const compactAround = around.replace(/\s+/g, '');
+
+            const isNegative = [
+                '아님',
+                '아니다',
+                '아니함',
+                '없음',
+                '해당하지',
+                '해당 안',
+                '해당안',
+                '해당 없음',
+                '해당없음',
+                '제외',
+                '비해당',
+                'not',
+                'none',
+                'no ',
+                'not applicable',
+                'not regulated',
+                'free'
+            ].some(term => {
+                const lowerTerm = term.toLowerCase();
+                return around.includes(lowerTerm) || compactAround.includes(lowerTerm.replace(/\s+/g, ''));
+            });
+
+            if (!isNegative) return false;
+            searchFrom = index + lowerKeyword.length;
+        }
+
+        return foundKeyword;
+    }
+
+    function getAffirmedKeywords(text, keywords) {
+        return keywords.filter(keyword => text.includes(keyword.toLowerCase()) && !isKeywordNegative(text, keyword));
+    }
+
     function runClientSideRuleParser(sec15Text, fullText) {
         const parsed = {};
         const lowerText = sec15Text.toLowerCase();
 
         // 1) 산업안전보건법
-        const sanAnKeywords = ["노출기준", "관리대상", "특별관리물질", "금지물질", "허가대상"];
-        const sanAnFound = sanAnKeywords.filter(k => lowerText.includes(k));
-        if (lowerText.includes("금지물질") || lowerText.includes("허가대상")) {
+        const sanAnKeywords = [
+            "노출기준",
+            "관리대상",
+            "특별관리물질",
+            "금지물질",
+            "허가대상",
+            "exposure limit",
+            "occupational exposure",
+            "controlled substance",
+            "prohibited substance",
+            "authorization substance"
+        ];
+        const sanAnFound = getAffirmedKeywords(lowerText, sanAnKeywords);
+        if (
+            sanAnFound.includes("금지물질") ||
+            sanAnFound.includes("허가대상") ||
+            sanAnFound.includes("prohibited substance") ||
+            sanAnFound.includes("authorization substance")
+        ) {
             parsed["san_an"] = {"status": "위험", "desc": `MSDS 우선 기재(로컬): ${sanAnFound.join(', ')} 법적 의무 확인 요망`};
         } else if (sanAnFound.length > 0) {
             parsed["san_an"] = {"status": "경고", "desc": `MSDS 우선 기재(로컬): ${sanAnFound.join(', ')} 대상에 해당함`};
@@ -757,9 +871,23 @@ JSON 형식:
         }
 
         // 2) 화학물질관리법
-        const hwaGwanKeywords = ["유독물질", "사고대비물질", "제한물질", "금지물질"];
-        const hwaGwanFound = hwaGwanKeywords.filter(k => lowerText.includes(k));
-        if (lowerText.includes("사고대비물질") || lowerText.includes("금지물질")) {
+        const hwaGwanKeywords = [
+            "유독물질",
+            "사고대비물질",
+            "제한물질",
+            "금지물질",
+            "toxic substance",
+            "accident preparedness",
+            "restricted substance",
+            "prohibited substance"
+        ];
+        const hwaGwanFound = getAffirmedKeywords(lowerText, hwaGwanKeywords);
+        if (
+            hwaGwanFound.includes("사고대비물질") ||
+            hwaGwanFound.includes("금지물질") ||
+            hwaGwanFound.includes("accident preparedness") ||
+            hwaGwanFound.includes("prohibited substance")
+        ) {
             parsed["hwa_gwan"] = {"status": "위험", "desc": `MSDS 우선 기재(로컬): 화관법 상의 ${hwaGwanFound.join(', ')} 고지`};
         } else if (hwaGwanFound.length > 0) {
             parsed["hwa_gwan"] = {"status": "경고", "desc": `MSDS 우선 기재(로컬): 화관법 상의 ${hwaGwanFound.join(', ')} 해당`};
@@ -768,15 +896,17 @@ JSON 형식:
         }
 
         // 3) 위험물안전관리법
-        const dangerMatch = sec15Text.match(/(제\s*\d\s*류\s*[^,\.\n]+|지정수량\s*\d+[^,\.\n]*)/);
-        if (dangerMatch) {
+        const dangerMatch = sec15Text.match(/(제\s*\d\s*류\s*[^,\.\n]+|지정수량\s*\d+[^,\.\n]*|class\s*[1-9](?:\.[1-9])?[^,\.\n]*|packing\s*group\s*(?:i{1,3}|[123])[^,\.\n]*)/i);
+        if (dangerMatch && !isKeywordNegative(sec15Text, dangerMatch[1], 25) && !isKeywordNegative(sec15Text, "위험물", 25)) {
             parsed["danger"] = {"status": "경고", "desc": `MSDS 우선 기재(로컬): 위험물안전법상 ${dangerMatch[1].trim()}`};
         } else {
             parsed["danger"] = {"status": "안전", "desc": "MSDS 우선 기재(로컬): 특이 규제 내역 감지되지 않음"};
         }
 
         // 4) 고압가스안전관리법
-        if (lowerText.includes("고압가스")) {
+        const hasHighGas = (lowerText.includes("고압가스") && !isKeywordNegative(sec15Text, "고압가스")) ||
+            (lowerText.includes("high pressure gas") && !isKeywordNegative(sec15Text, "high pressure gas"));
+        if (hasHighGas) {
             parsed["high_gas"] = {"status": "경고", "desc": "MSDS 우선 기재(로컬): 고압가스안전관리법 실린더 용기 적용 대상"};
         } else {
             parsed["high_gas"] = {"status": "안전", "desc": "MSDS 우선 기재(로컬): 해당 없음"};
@@ -784,7 +914,7 @@ JSON 형식:
 
         // 5) 국제 운송 (IMDG/IATA)
         const unMatch = (sec15Text + " " + fullText).match(/UN\s*(\d{4})/i);
-        if (unMatch) {
+        if (unMatch && !isKeywordNegative(sec15Text + " " + fullText, unMatch[0], 25)) {
             parsed["imdg"] = {"status": "경고", "desc": `MSDS 우선 기재(로컬): 해상운송 UN ${unMatch[1]} 위험 제한`};
             parsed["iata"] = {"status": "경고", "desc": `MSDS 우선 기재(로컬): 항공운송 UN ${unMatch[1]} 수하물 제한`};
         } else {
