@@ -234,8 +234,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderResults(aiResult);
                 // 프록시 적용 배너
                 priorityBanner.classList.remove('hidden');
-                bannerTitle.textContent = "보안 프록시 AI 진단 완료";
-                bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통하여 NVIDIA AI 정밀 분석을 안전하게 수행했습니다.";
+                if (aiResult.ai_warning) {
+                    bannerTitle.textContent = "AI 응답 확인 필요";
+                    bannerDesc.textContent = aiResult.ai_warning;
+                } else {
+                    bannerTitle.textContent = "보안 프록시 AI 진단 완료";
+                    bannerDesc.textContent = "사내 보안 프록시(Cloudflare Workers) 서버를 통하여 NVIDIA AI 정밀 분석을 안전하게 수행했습니다.";
+                }
                 return;
             }
         }
@@ -473,7 +478,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return data;
         } catch (error) {
             console.error("[프록시 물질명 진단 실패]", error);
-            alert("보안 프록시 서버 연동에 실패했습니다. 주소가 정확한지, 혹은 서버가 켜져 있는지 확인해 주세요.");
             return null;
         }
     }
@@ -534,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
 5. imdg (해상운송 IMDG)
 6. iata (항공운송 IATA DGR)
 
-반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
+반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오. 각 desc는 한글 120자 이내로 간결하게 작성하십시오.
 JSON 형식:
 {
   "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
@@ -561,7 +565,7 @@ JSON 형식:
                         {"role": "user", "content": userPrompt}
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 1024
+                    "max_tokens": 2048
                 })
             });
 
@@ -600,6 +604,7 @@ JSON 형식:
 6. iata (항공운송 IATA DGR)
 
 반드시 아래의 엄격한 JSON 형식으로만 응답해야 합니다. 어떠한 Markdown 코드 블록도 포함하지 말고 오직 순수 JSON 데이터만 반환하십시오.
+각 desc는 한글 120자 이내로 간결하게 작성하십시오.
 JSON 형식:
 {
   "cas_no": "물질의 CAS 번호 (확인 불가 시 미확인)",
@@ -631,7 +636,7 @@ JSON 형식:
                         {"role": "user", "content": `검색 물질명: ${name}`}
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 1024
+                    "max_tokens": 2048
                 })
             });
 

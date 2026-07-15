@@ -60,6 +60,27 @@ function normalizeRegulations(value) {
     return fallback;
 }
 
+function normalizeNameResponse(value, query) {
+    const source = value && typeof value === "object" ? value : {};
+    const isCasNumber = /^\d{2,7}-\d{2}-\d$/.test(query);
+
+    return {
+        cas_no: normalizeInput(source.cas_no) || (isCasNumber ? query : "미확인"),
+        name_ko: normalizeInput(source.name_ko) || query,
+        name_en: normalizeInput(source.name_en) || "Unknown Substance",
+        formula: normalizeInput(source.formula) || "-",
+        molecular_weight: normalizeInput(source.molecular_weight) || "-",
+        regulations: normalizeRegulations(source.regulations)
+    };
+}
+
+function buildNameFallback(query, warning) {
+    return {
+        ...normalizeNameResponse(null, query),
+        ai_warning: warning
+    };
+}
+
 function extractJsonObject(content) {
     const firstBrace = content.indexOf("{");
     if (firstBrace === -1) return null;
@@ -148,7 +169,7 @@ export default {
 5. imdg (해상운송 IMDG)
 6. iata (항공운송 IATA DGR)
 
-CRITICAL INSTRUCTION: You MUST output ONLY valid JSON. No explanations, no thoughts, no markdown formatting. 절대로 당신의 생각 과정(Chain of Thought)이나 설명을 포함하지 마십시오. 첫 글자는 반드시 '{' 이어야 하며, 마지막 글자는 반드시 '}' 이어야 합니다. 어떠한 Markdown 코드 블록(\`\`\`)도 사용하지 마십시오. 오직 순수 JSON 데이터만 반환하십시오.
+CRITICAL INSTRUCTION: You MUST output ONLY valid JSON. No explanations, no thoughts, no markdown formatting. 절대로 당신의 생각 과정(Chain of Thought)이나 설명을 포함하지 마십시오. 첫 글자는 반드시 '{' 이어야 하며, 마지막 글자는 반드시 '}' 이어야 합니다. 어떠한 Markdown 코드 블록(\`\`\`)도 사용하지 마십시오. 오직 순수 JSON 데이터만 반환하십시오. 각 desc는 한글 120자 이내로 간결하게 작성하십시오.
 JSON 형식:
 {
   "san_an": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
@@ -183,6 +204,7 @@ JSON 형식:
 6. iata (항공운송 IATA DGR)
 
 CRITICAL INSTRUCTION: You MUST output ONLY valid JSON. No explanations, no thoughts, no markdown formatting. 절대로 당신의 생각 과정(Chain of Thought)이나 설명을 포함하지 마십시오. 첫 글자는 반드시 '{' 이어야 하며, 마지막 글자는 반드시 '}' 이어야 합니다. 어떠한 Markdown 코드 블록(\`\`\`)도 사용하지 마십시오. 오직 순수 JSON 데이터만 반환하십시오.
+각 desc는 한글 120자 이내로 간결하게 작성하십시오.
 JSON 형식:
 {
   "cas_no": "물질의 CAS 번호 (확인 불가 시 미확인)",
@@ -201,8 +223,19 @@ JSON 형식:
 }`;
                 const userPrompt = `화학물질명: ${name}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
 
-                const aiResponse = await callNvidiaNemotron(apiKey, systemPrompt, userPrompt);
-                return new Response(JSON.stringify(aiResponse), {
+                let responseData;
+                try {
+                    const aiResponse = await callNvidiaNemotron(apiKey, systemPrompt, userPrompt);
+                    responseData = normalizeNameResponse(aiResponse, name);
+                } catch (error) {
+                    console.error("[diagnose-name] AI response processing failed", error);
+                    responseData = buildNameFallback(
+                        name,
+                        "AI 응답을 완전한 JSON으로 해석하지 못해 확인 필요 결과를 표시합니다. 잠시 후 다시 검색하거나 MSDS를 업로드해 주세요."
+                    );
+                }
+
+                return new Response(JSON.stringify(responseData), {
                     headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders }
                 });
             }
@@ -235,7 +268,7 @@ async function callNvidiaNemotron(apiKey, systemPrompt, userPrompt) {
                 { "role": "user", "content": userPrompt }
             ],
             "temperature": 0.1,
-            "max_tokens": 1024
+            "max_tokens": 2048
         })
     });
 
