@@ -269,7 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. 브라우저 메모리상 PDF 분석 및 LLM 연동
     // ==========================================
     async function handlePdfFile(file) {
-        if (file.type !== 'application/pdf') {
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        if (!isPdf) {
             alert('PDF 형식의 MSDS 문서만 지원합니다.');
             return;
         }
@@ -280,18 +281,32 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const fileReader = new FileReader();
             fileReader.onload = async function() {
-                const typedarray = new Uint8Array(this.result);
-                const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                let fullText = '';
-                
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join(' ');
-                    fullText += pageText + '\n';
-                }
+                try {
+                    const typedarray = new Uint8Array(this.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    let fullText = '';
 
-                await parseAndAnalyzeMsds(fullText);
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        const pageText = textContent.items.map(item => item.str).join(' ');
+                        fullText += pageText + '\n';
+                    }
+
+                    if (!fullText.trim()) {
+                        throw new Error('PDF에서 텍스트를 추출하지 못했습니다. 스캔 이미지 PDF는 OCR 처리 후 다시 업로드해 주세요.');
+                    }
+
+                    await parseAndAnalyzeMsds(fullText);
+                } catch (error) {
+                    console.error("[PDF 파싱 실패]", error);
+                    alert(`PDF 파싱 중 에러 발생: ${error.message}`);
+                    showLoader(false);
+                }
+            };
+            fileReader.onerror = function() {
+                alert('PDF 파일을 읽는 중 오류가 발생했습니다.');
+                showLoader(false);
             };
             fileReader.readAsArrayBuffer(file);
         } catch (error) {
@@ -300,13 +315,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function normalizePdfText(text) {
+        return text
+            .replace(/\r/g, '\n')
+            .replace(/[ \t]+/g, ' ')
+            .replace(/\n\s+/g, '\n')
+            .trim();
+    }
+
+    function extractMsdsSection(text, sectionNumber, titleKeywords, maxLength) {
+        const normalized = normalizePdfText(text);
+        const titlePattern = titleKeywords.map(keyword => keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+        const startRegex = new RegExp(`(?:^|\\n|\\s)${sectionNumber}\\s*[\\.\\)]?\\s*(?:${titlePattern})`, 'i');
+        const startMatch = normalized.match(startRegex);
+
+        if (!startMatch || startMatch.index === undefined) {
+            return '';
+        }
+
+        const start = startMatch.index;
+        const nextSectionRegex = new RegExp(`(?:^|\\n|\\s)${sectionNumber + 1}\\s*[\\.\\)]?\\s+`, 'i');
+        const remainder = normalized.slice(start + startMatch[0].length);
+        const nextMatch = remainder.match(nextSectionRegex);
+        const end = nextMatch && nextMatch.index !== undefined
+            ? start + startMatch[0].length + nextMatch.index
+            : start + maxLength;
+
+        return normalized.slice(start, end).trim().slice(0, maxLength);
+    }
+
+    function buildFallbackMsdsExcerpt(text, maxLength = 1800) {
+        const normalized = normalizePdfText(text);
+        const keywords = ['법적 규제', '법적규제', '유해성', '위험성', '산업안전', '화학물질관리', '위험물', '고압가스', 'UN'];
+        const hitPositions = keywords
+            .map(keyword => normalized.indexOf(keyword))
+            .filter(index => index >= 0);
+        const start = hitPositions.length > 0 ? Math.max(0, Math.min(...hitPositions) - 300) : 0;
+        return normalized.slice(start, start + maxLength).trim();
+    }
+
     // 추출된 MSDS 텍스트 분석 실행
     async function parseAndAnalyzeMsds(text) {
         showLoader(true, 'MSDS 텍스트 구조 분석 및 규제 항목을 식별 중입니다...');
+        const normalizedText = normalizePdfText(text);
 
         // 1) CAS 번호 정규식 탐지
         const casPattern = /\b\d{2,7}-\d{2}-\d\b/g;
-        const matches = text.match(casPattern) || [];
+        const matches = normalizedText.match(casPattern) || [];
         const uniqueCas = [...new Set(matches)];
         let detectedCas = null;
         if (uniqueCas.length > 0) {
@@ -316,29 +371,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 2) 물질명 추출 시도
         let detectedName = null;
-        const nameMatch = text.match(/가\.\s*제품명\s*:\s*([^\n]+)/) || text.match(/가\.\s*제품명\s*([^\n]+)/);
+        const nameMatch = normalizedText.match(/(?:가\.\s*)?(?:제품명|물질명|화학제품과 회사에 관한 정보)\s*:?\s*([^\n]+)/i);
         if (nameMatch) {
             detectedName = nameMatch[1].trim();
         }
 
         // 3) 섹션 2 및 15조 영역 텍스트 추출
-        let sec2Text = '';
-        const sec2Start = text.indexOf('2. 유해성');
-        if (sec2Start !== -1) {
-            sec2Text = text.substring(sec2Start, sec2Start + 500);
-        }
+        const fallbackExcerpt = buildFallbackMsdsExcerpt(normalizedText);
+        let sec2Text = extractMsdsSection(normalizedText, 2, ['유해성', '위험성', '유해 위험성', 'Hazards identification'], 1200);
+        let sec15Text = extractMsdsSection(normalizedText, 15, ['법적', '법적규제', '법적 규제', 'Regulatory information'], 1600);
 
-        let sec15Text = '';
-        const sec15Start = text.indexOf('15. 법적');
-        if (sec15Start !== -1) {
-            sec15Text = text.substring(sec15Start, sec15Start + 400);
-        } else {
-            // 다른 양식 대응
-            const sec15StartAlt = text.indexOf('15. 법적규제');
-            if (sec15StartAlt !== -1) {
-                sec15Text = text.substring(sec15StartAlt, sec15StartAlt + 400);
-            }
-        }
+        if (!sec2Text) sec2Text = fallbackExcerpt;
+        if (!sec15Text) sec15Text = fallbackExcerpt;
 
         // 4) NVIDIA Nemotron LLM 진단 수행 (키 유무 확인)
         const nvidiaKey = localStorage.getItem('NVIDIA_API_KEY');
@@ -349,7 +393,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nvidiaKey) {
             showLoader(true, 'NVIDIA Nemotron 초거대 AI 모델로 규제 조항을 직접 정밀 진단 중입니다...');
             parsedRegulations = await callNvidiaNemotronAPI(nvidiaKey, sec2Text, sec15Text);
-        } else if (proxyUrl) {
+        }
+
+        if (!parsedRegulations && proxyUrl) {
             showLoader(true, '사내 보안 프록시 AI 서버로 MSDS 규제 분석을 요청 중입니다...');
             parsedRegulations = await callProxyAPIForPdf(proxyUrl, sec2Text, sec15Text);
             if (parsedRegulations) isProxyUsed = true;
@@ -358,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 5) LLM 응답 실패 시 브라우저단 로컬 규칙 엔진 폴백
         if (!parsedRegulations) {
             console.log('[시스템] 로컬 브라우저 규칙 파서가 가동됩니다.');
-            parsedRegulations = runClientSideRuleParser(sec15Text, text);
+            parsedRegulations = runClientSideRuleParser(sec15Text, normalizedText);
         }
 
         // 6) 최종 결과 데이터 조립
@@ -419,7 +465,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ name: name })
             });
 
-            if (!response.ok) throw new Error(`프록시 서버 응답 실패 (Status: ${response.status})`);
+            if (!response.ok) {
+                const message = await readApiError(response);
+                throw new Error(`프록시 서버 응답 실패 (Status: ${response.status}) ${message}`);
+            }
             const data = await response.json();
             return data;
         } catch (error) {
@@ -448,13 +497,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
 
-            if (!response.ok) throw new Error(`프록시 서버 응답 실패 (Status: ${response.status})`);
+            if (!response.ok) {
+                const message = await readApiError(response);
+                throw new Error(`프록시 서버 응답 실패 (Status: ${response.status}) ${message}`);
+            }
             const data = await response.json();
             return data;
         } catch (error) {
             console.error("[프록시 MSDS PDF 진단 실패]", error);
-            alert("보안 프록시 서버 연동에 실패했습니다. 주소가 정확한지 확인해 주세요.");
+            alert(`보안 프록시 서버 연동에 실패했습니다.\n${error.message}`);
             return null;
+        }
+    }
+
+    async function readApiError(response) {
+        try {
+            const text = await response.text();
+            return text ? `- ${text.slice(0, 300)}` : '';
+        } catch (error) {
+            return '';
         }
     }
 
@@ -504,7 +565,10 @@ JSON 형식:
                 })
             });
 
-            if (!response.ok) throw new Error('API 응답 실패');
+            if (!response.ok) {
+                const message = await readApiError(response);
+                throw new Error(`API 응답 실패 (Status: ${response.status}) ${message}`);
+            }
 
             const resData = await response.json();
             let content = resData.choices[0].message.content.trim();
@@ -571,7 +635,10 @@ JSON 형식:
                 })
             });
 
-            if (!response.ok) throw new Error('API 응답 실패');
+            if (!response.ok) {
+                const message = await readApiError(response);
+                throw new Error(`API 응답 실패 (Status: ${response.status}) ${message}`);
+            }
 
             const resData = await response.json();
             let content = resData.choices[0].message.content.trim();

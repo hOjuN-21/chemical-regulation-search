@@ -28,6 +28,77 @@ function jsonError(message, status = 400, headers = {}) {
     });
 }
 
+function normalizeInput(value) {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function buildRegulationFallback() {
+    return {
+        san_an: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. MSDS 원문 제15조를 직접 확인해 주세요." },
+        hwa_gwan: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. 화학물질관리법 대상 여부를 별도 확인해 주세요." },
+        danger: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. 위험물안전관리법 유별 및 지정수량을 별도 확인해 주세요." },
+        high_gas: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. 고압가스 해당 여부를 별도 확인해 주세요." },
+        imdg: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. UN 번호 및 IMDG 등급을 별도 확인해 주세요." },
+        iata: { status: "주의", desc: "AI 응답을 정규 JSON으로 해석하지 못했습니다. UN 번호 및 IATA DGR 등급을 별도 확인해 주세요." }
+    };
+}
+
+function normalizeRegulations(value) {
+    const fallback = buildRegulationFallback();
+    const source = value && typeof value === "object" ? value : {};
+
+    for (const key of Object.keys(fallback)) {
+        const item = source[key];
+        if (item && typeof item === "object") {
+            fallback[key] = {
+                status: typeof item.status === "string" ? item.status : "주의",
+                desc: typeof item.desc === "string" ? item.desc : fallback[key].desc
+            };
+        }
+    }
+
+    return fallback;
+}
+
+function extractJsonObject(content) {
+    const firstBrace = content.indexOf("{");
+    if (firstBrace === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+
+    for (let i = firstBrace; i < content.length; i++) {
+        const char = content[i];
+
+        if (isEscaped) {
+            isEscaped = false;
+            continue;
+        }
+
+        if (char === "\\") {
+            isEscaped = true;
+            continue;
+        }
+
+        if (char === '"') {
+            inString = !inString;
+            continue;
+        }
+
+        if (inString) continue;
+
+        if (char === "{") depth++;
+        if (char === "}") depth--;
+
+        if (depth === 0) {
+            return content.slice(firstBrace, i + 1);
+        }
+    }
+
+    return content.slice(firstBrace);
+}
+
 // 메인 요청 핸들러
 export default {
     async fetch(request, env, ctx) {
@@ -60,10 +131,13 @@ export default {
 
             // 1. MSDS PDF 분석 엔드포인트
             if (path === "/api/diagnose-pdf") {
-                const { sec2, sec15 } = body;
-                if (!sec2 || !sec15) {
-                    return jsonError("Missing required parameters: sec2 and sec15", 400, corsHeaders);
+                const sec2 = normalizeInput(body.sec2);
+                const sec15 = normalizeInput(body.sec15);
+                if (!sec2 && !sec15) {
+                    return jsonError("Missing MSDS text: sec2 or sec15 is required", 400, corsHeaders);
                 }
+                const safeSec2 = sec2 || "MSDS 제2조 텍스트를 별도로 추출하지 못했습니다. 제공된 제15조 또는 발췌 원문을 기준으로 판단하세요.";
+                const safeSec15 = sec15 || "MSDS 제15조 텍스트를 별도로 추출하지 못했습니다. 제공된 제2조 또는 발췌 원문을 기준으로 판단하세요.";
 
                 const systemPrompt = `You are a strict JSON data generator. 당신은 대한민국 화학물질 규제 전문가입니다. 제공된 화학물질 MSDS의 유해성(2조) 및 법적규제현황(15조) 텍스트를 분석하여 요청하는 국내외 6가지 법적 규제에 저촉되는지 분류하고 근거를 요약하여 반환해야 합니다.
 분류할 대상 법령 및 키워드:
@@ -84,17 +158,17 @@ JSON 형식:
   "imdg": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"},
   "iata": {"status": "안전 또는 주의 또는 경고 또는 위험", "desc": "한글 법령 저촉 근거 및 요약"}
 }`;
-                const userPrompt = `MSDS 제2조 유해성 위험성:\n${sec2}\n\nMSDS 제15조 법적 규제현황:\n${sec15}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
+                const userPrompt = `MSDS 제2조 유해성 위험성:\n${safeSec2}\n\nMSDS 제15조 법적 규제현황:\n${safeSec15}\n\nCRITICAL: Output ONLY a JSON object. No other text.`;
                 
                 const aiResponse = await callNvidiaNemotron(apiKey, systemPrompt, userPrompt);
-                return new Response(JSON.stringify(aiResponse), {
+                return new Response(JSON.stringify(normalizeRegulations(aiResponse)), {
                     headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders }
                 });
             }
 
             // 2. 물질명 검색 엔드포인트
             else if (path === "/api/diagnose-name") {
-                const { name } = body;
+                const name = normalizeInput(body.name);
                 if (!name) {
                     return jsonError("Missing required parameter: name", 400, corsHeaders);
                 }
@@ -166,11 +240,15 @@ async function callNvidiaNemotron(apiKey, systemPrompt, userPrompt) {
     });
 
     if (!response.ok) {
-        throw new Error(`NVIDIA API responded with status ${response.status}`);
+        const errorBody = await response.text();
+        throw new Error(`NVIDIA API responded with status ${response.status}: ${errorBody.slice(0, 500)}`);
     }
 
     const resData = await response.json();
-    let content = resData.choices[0].message.content.trim();
+    let content = resData?.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+        throw new Error("NVIDIA API returned an empty message");
+    }
 
     // 혹시 모를 Markdown 블록 제거
     if (content.startsWith("```")) {
@@ -178,9 +256,8 @@ async function callNvidiaNemotron(apiKey, systemPrompt, userPrompt) {
     }
 
     // JSON 부분만 추출 및 닫는 괄호 복구
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-        let extractedJson = jsonMatch[0];
+    const extractedJson = extractJsonObject(content);
+    if (extractedJson) {
         try {
             return JSON.parse(extractedJson);
         } catch (e) {
